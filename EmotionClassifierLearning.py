@@ -17,47 +17,11 @@ class EmotionClassifierLearning:
         self.emotion_label = ['happy', 'neutral', 'negative']
         self.__log_config()
         super().__init__()
-    
-    # def model_learning(self, dpath):
-    #     X, Y = self.__data_loader(Path(dpath), 48)
-    #     X, Y = self.__data_augmentation(X, Y)
-    #     Y = to_categorical(Y, num_classes=3)
-    #     # floatモデルで事前学習
-    #     self.logger.info("==== Full-training model ====")
-    #     model_fp32 = self.__create_model()
-    #     model_fp32.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    #     model_fp32.fit(X.astype('float32') / 255.0, Y, batch_size=8, epochs=1, validation_split=0.1, callbacks=self.__callbacks())
-    #     model_fp32.save_weights("models" / "model_float_weights.h5")
-    #     # QATモデル変換
-    #     self.logger.info("==== QAT-training model ====")
-    #     quantize_model = tfmot.quantization.keras.quantize_model
-    #     model_qat = quantize_model(model_fp32)
-    #     model_qat.compile(optimizer=tf.keras.optimizers.Adam(1e-4), loss='categorical_crossentropy', metrics=['accuracy'])
-    #     # QAT学習
-    #     model_qat.fit(X, Y, batch_size=8, epochs=1, validation_split=0.1, callbacks=self.__callbacks())
-    #     # TFLite uint8 変換
-    #     converter = tf.lite.TFLiteConverter.from_keras_model(model_qat)
-    #     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    #     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
-    #     converter.inference_input_type = tf.uint8  # 実行時の入力型
-    #     converter.inference_output_type = tf.uint8
-    #     converter.experimental_new_converter = False #True
-
-    #     def representative_dataset():
-    #         for data in tf.data.Dataset.from_tensor_slices(X[:100]).batch(1):
-    #             yield [tf.cast(data, tf.float32)]
-
-    #     converter.representative_dataset = representative_dataset
-    #     tflite_model = converter.convert()
-    #     with open("./models/fer2013_qat_model.tflite", "wb") as f:
-    #         f.write(tflite_model)
-    #     self.logger.info("Trained quantized model saved to fer2013_qat_model.tflite")
 
     def model_learning_efficient_lite0(self, dpath, input_size):
         X, Y = self.__data_loader(Path(dpath), input_size)
         X, Y = self.__data_augmentation(X, Y)
         Y = to_categorical(Y, num_classes=3)
-        # floatモデルで事前学習
         self.logger.info("==== Full-training model ====")
         model = self.__create_model_efficient_lite0(input_size=input_size, num_classes=3)
         model.compile(optimizer='adam',
@@ -65,35 +29,6 @@ class EmotionClassifierLearning:
                     metrics=['accuracy'])
         model.fit(X.astype(np.float32) / 255.0, Y, batch_size=16, epochs=50, validation_split=0.1, callbacks=self.__callbacks())
         model.save_weights("models/model_float_weights.h5")
-        # QAT 変換・ファインチューニング
-        self.logger.info("==== QAT-training model ====")
-        self.quantize(input_size)
-        # model = self.__create_model_efficient_lite0(input_size=input_size, num_classes=3)
-        # model.load_weights("models/model_float_weights.h5")
-        # # qat_model = tfmot.quantization.keras.quantize_model(model)
-        # annotated_model = tfmot.quantization.keras.quantize_annotate_model(model) # Rescaling を量子化せず、残りをアノテーションする
-        # qat_model = tfmot.quantization.keras.quantize_apply(annotated_model) # 量子化モデルに変換
-        # qat_model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
-        #                 loss='categorical_crossentropy',
-        #                 metrics=['accuracy'])
-        # qat_model.fit(X, Y, batch_size=8, epochs=1, validation_split=0.1, callbacks=self.__callbacks())
-
-        # # TFLite int8 量子化変換
-        # converter = tf.lite.TFLiteConverter.from_keras_model(qat_model)
-        # converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        # converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
-        # converter.inference_input_type  = tf.uint8
-        # converter.inference_output_type = tf.uint8
-
-        # def representative_dataset():
-        #     for data in tf.data.Dataset.from_tensor_slices(X[:100]).batch(1):
-        #         yield [tf.cast(data, tf.float32)]
-
-        # converter.representative_dataset = representative_dataset
-
-        # tflite_model = converter.convert()
-        # with open('efficient_lite0_128_int8.tflite','wb') as f:
-        #     f.write(tflite_model)
 
     def __data_loader(self, dpath, input_size):
         data = pd.read_csv(dpath / "fer2013.csv")  # kaggleから取得したCSV形式を想定
@@ -117,7 +52,7 @@ class EmotionClassifierLearning:
         return X, Y_mapped
 
     def __data_augmentation(self, X, Y):
-        # Augmentationパイプライン（例）
+        # Augmentationパイプライン
         augmentor = augmenters.Sequential([
             augmenters.Fliplr(0.5),             # 左右反転
             augmenters.Affine(translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)}), # 平行移動
@@ -176,28 +111,6 @@ class EmotionClassifierLearning:
         model = tf.keras.Model(inputs=inp, outputs=out, name='EfficientLite0')
         return model
 
-    def __create_qat_model_efficient_lite0(self, input_size=128, num_classes=3):
-        base_model = tf.keras.applications.EfficientNetB0(
-            input_shape=(128, 128, 3),
-            include_top=False,
-            weights=None,
-            pooling='avg'
-        )
-        qat_base = tfmot.quantization.keras.quantize_annotate_model(base_model)
-
-        inp = tf.keras.layers.Input(shape=(input_size, input_size, 1)) # 入力：128×128×3
-        inp_3 = tf.keras.layers.Concatenate()([inp, inp, inp])
-        x = qat_base(inp_3)
-        x = tf.keras.layers.Dropout(0.2)(x)
-        outputs = tf.keras.layers.Dense(num_classes, activation='softmax')(x)
-        model = tf.keras.Model(inputs=inputs, outputs=outputs)
-
-        # アノテート済みモデルを丸ごと量子化
-        annotated = tfmot.quantization.keras.quantize_annotate_model(model)
-        with tfmot.quantization.keras.quantize_scope():
-            qat_model = tfmot.quantization.keras.quantize_apply(annotated)
-        return qat_model
-
     def __log_config(self):
         # ログ設定
         logging.basicConfig(
@@ -211,7 +124,6 @@ class EmotionClassifierLearning:
         self.logger = logging.getLogger(__name__)
 
     def __callbacks(self):
-        # checkpoint = ModelCheckpoint('best_model.h5', save_best_only=True, monitor='val_loss', mode='min')
         early_stopping = EarlyStopping(
             monitor='val_accuracy',    # 検証用ロスを監視
             min_delta=1e-3,            # 「改善」と見なす最小の変化
@@ -235,67 +147,6 @@ class EmotionClassifierLearning:
         logging_callback = LoggingCallback(self.logger)
         return [early_stopping, reduce_lr, tensorboard, logging_callback]
 
-    def quantize(self, input_size):
-        model = self.__create_model_efficient_lite0(input_size=input_size, num_classes=3)
-        model.load_weights("models/model_float_weights.h5")
-        print(model.summary())
-        # Rescaling を除いてアノテート
-        print("annoated...")
-        # annotated_model = self.annotate_model_excluding_rescaling(model)
-        annotated_model = tfmot.quantization.keras.quantize_annotate_model(model)
-        # QAT モデルに変換
-        print("quantize...")
-        # qat_model = tfmot.quantization.keras.quantize_apply(annotated_model)
-        with tfmot.quantization.keras.quantize_scope():
-            model_qat = tfmot.quantization.keras.quantize_apply(annotated_model)
-        # annotated_model = tfmot.quantization.keras.quantize_annotate_model(model) # Rescaling を量子化せず、残りをアノテーションする
-        # qat_model = tfmot.quantization.keras.quantize_apply(annotated_model) # 量子化モデルに変換
-        print("compile...")
-        qat_model.compile(optimizer=tf.keras.optimizers.Adam(1e-4),
-                        loss='categorical_crossentropy',
-                        metrics=['accuracy'])
-        print("start learning...")
-        qat_model.fit(X, Y, batch_size=8, epochs=1, validation_split=0.1, callbacks=self.__callbacks())
-
-        # TFLite int8 量子化変換
-        converter = tf.lite.TFLiteConverter.from_keras_model(qat_model)
-        converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
-        converter.inference_input_type  = tf.uint8
-        converter.inference_output_type = tf.uint8
-
-        def representative_dataset():
-            for data in tf.data.Dataset.from_tensor_slices(X[:100]).batch(1):
-                yield [tf.cast(data, tf.float32)]
-
-        converter.representative_dataset = representative_dataset
-
-        tflite_model = converter.convert()
-        with open('efficient_lite0_quantize.tflite','wb') as f:
-            f.write(tflite_model)
-
-    def annotate_model_excluding_rescaling(self, model):
-        annotated_layers_map = {}
-
-        for layer in model.layers:
-            if isinstance(layer, tf.keras.layers.Rescaling):
-                annotated_layers_map[layer.name] = layer
-            else:
-                annotated_layers_map[layer.name] = tfmot.quantization.keras.quantize_annotate_layer(layer)
-
-        # 入力から順にアノテート済みレイヤーを再構成する
-        inputs = model.input
-        x = inputs
-        for layer in model.layers[1:]:  # 入力層はもうある
-            annotated_layer = annotated_layers_map[layer.name]
-            if isinstance(x, list):
-                x = annotated_layer(x)
-            else:
-                x = annotated_layer([x]) if isinstance(layer.input, list) else annotated_layer(x)
-
-        return Model(inputs, x)
-
 if __name__ == "__main__":
     ec = EmotionClassifierLearning()
     ec.model_learning_efficient_lite0(dpath="./dataset", input_size=192)
-    # ec.quantize(192)
