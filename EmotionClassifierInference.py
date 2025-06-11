@@ -12,7 +12,7 @@ class EmotionClassifierInference:
         super().__init__()
 
     def classifier_float(self, input_img, input_size):
-        model = self.__create_model_efficient_lite0(input_size=128, num_classes=3)
+        model = self.__create_model_efficient_lite0(input_size, num_classes=3)
         model.load_weights("./models/model_float_weights.h5")
         input_img = self.preproc(input_img)
         input_img = self.__make_input(input_img, input_size)
@@ -36,7 +36,7 @@ class EmotionClassifierInference:
         inp = tf.keras.layers.Input(shape=(input_size, input_size, 1)) # 入力：128×128×3
         inp_3 = tf.keras.layers.Concatenate()([inp, inp, inp])
         base = tf.keras.applications.EfficientNetB0( # EfficientNetB0 を Lite0 相当に軽量化
-            input_tensor=inp3,
+            input_tensor=inp_3,
             include_top=False,
             weights=None,       # ImageNet 事前学習不要 or 利用不可なら None
             pooling='avg'
@@ -44,7 +44,7 @@ class EmotionClassifierInference:
         x = base.output
         x = tf.keras.layers.Dropout(0.2)(x) # Dropout で過学習防止
         out = tf.keras.layers.Dense(num_classes, activation='softmax')(x) # 出力層
-        model = tf.keras.Model(inputs=inp, outputs=out, name='EfficientLite0_128')
+        model = tf.keras.Model(inputs=inp_3, outputs=out, name='EfficientLite0_128')
         return model
 
 if __name__ == "__main__":
