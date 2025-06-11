@@ -16,7 +16,8 @@ class EmotionClassifierInference:
         model.load_weights("./models/model_float_weights.h5")
         input_img = self.preproc(input_img)
         input_img = self.__make_input(input_img, input_size)
-        pred = model.predict(input_img)
+        input_img3 = tf.keras.layers.Concatenate()([input_img, input_img, input_img])
+        pred = model.predict(input_img3)
         e_label = self.emotion_label[np.argmax(pred)]
         return e_label
 
