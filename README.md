@@ -1,9 +1,9 @@
 # 環境構築
 * venvを用いて仮想環境を立ち上げることをお勧めします。
 * その後はrequirements.txtを使用して必要なライブラリをインストールできます。
-* python3.9で動作確認を行なっています。以下、macOSでの動作例を示します。
+* 以下、macOSでの動作例を示します。
 ``` bash
-python3.9 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
