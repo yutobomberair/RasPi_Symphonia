@@ -34,8 +34,9 @@ class EmotionClassifierInference:
 
     def __create_model_efficient_lite0(self, input_size=128, num_classes=3):
         inp = tf.keras.layers.Input(shape=(input_size, input_size, 1)) # 入力：128×128×3
+        inp_3 = tf.keras.layers.Concatenate()([inp, inp, inp])
         base = tf.keras.applications.EfficientNetB0( # EfficientNetB0 を Lite0 相当に軽量化
-            input_tensor=inp,
+            input_tensor=inp3,
             include_top=False,
             weights=None,       # ImageNet 事前学習不要 or 利用不可なら None
             pooling='avg'
